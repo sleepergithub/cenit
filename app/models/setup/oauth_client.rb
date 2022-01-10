@@ -1,6 +1,5 @@
 module Setup
   class OauthClient < AuthorizationClient
-    include RailsAdmin::Models::Setup::OauthClientAdmin
 
     abstract_class true
 
@@ -8,6 +7,8 @@ module Setup
       .including(:provider)
       .protecting(:identifier, :secret)
       .referenced_by(:_type, :provider, :namespace, :name)
+
+    allow :read
 
     def create_authorization!(auth_data = {})
       auth_class = self.class.preferred_authorization_class(provider)

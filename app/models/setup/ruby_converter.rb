@@ -2,11 +2,10 @@ module Setup
   class RubyConverter < ConverterTransformation
     include WithSourceOptions
     include RubyCodeTransformation
-    include RailsAdmin::Models::Setup::RubyConverterAdmin
 
     build_in_data_type.referenced_by(:namespace, :name)
 
-    field :source_handler, type: Boolean
+    field :source_handler, type: Mongoid::Boolean
 
     def validates_configuration
       unless source_handler

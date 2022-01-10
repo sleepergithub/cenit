@@ -4,15 +4,18 @@ module Setup
     include NamespaceNamed
     include ClassHierarchyAware
     include JsonMetadata
-    include RailsAdmin::Models::Setup::AuthorizationAdmin
 
     abstract_class true
 
     build_in_data_type.referenced_by(:namespace, :name)
 
-    field :authorized, type: Boolean
+    field :authorized, type: Mongoid::Boolean
 
-    before_save :check
+    before_save :check!
+
+    def check!
+      throw(:abort) unless check
+    end
 
     def check
       errors.blank?

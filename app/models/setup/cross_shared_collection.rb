@@ -4,32 +4,36 @@ module Setup
     include CrossOrigin::CenitDocument
     include CollectionBehavior
     include Taggable
-    include RailsAdmin::Models::Setup::CrossSharedCollectionAdmin
+    include AsynchronousPersistence::Model
 
     origins -> { Cenit::MultiTenancy.tenant_model.current && :owner }, :shared
 
     default_origin :owner
 
-    build_in_data_type.with(:title,
-                            :name,
-                            :shared_version,
-                            :authors,
-                            :summary,
-                            :categories,
-                            :pull_parameters,
-                            :pull_asynchronous,
-                            :pull_count,
-                            :dependencies,
-                            :readme,
-                            :image,
-                            :pull_data,
-                            :data,
-                            :swagger_spec,
-                            *COLLECTING_PROPERTIES).embedding(:categories)
+    build_in_data_type.with(
+      :title,
+      :origin,
+      :name,
+      :shared_version,
+      :authors,
+      :summary,
+      :categories,
+      :pull_parameters,
+      :pull_asynchronous,
+      :pull_count,
+      :dependencies,
+      :readme,
+      :image,
+      :pull_data,
+      :data,
+      :swagger_spec,
+      *COLLECTING_PROPERTIES
+    )
+    build_in_data_type.embedding(:categories).and(with_origin: true)
     build_in_data_type.discarding(:pull_data, *COLLECTING_PROPERTIES)
     build_in_data_type.referenced_by(:name, :shared_version)
 
-    deny :new, :translator_update, :convert, :send_to_flow, :copy, :delete_all
+    deny :create
 
     belongs_to :owner, class_name: Cenit::MultiTenancy.user_model_name, inverse_of: nil
 
@@ -50,8 +54,8 @@ module Setup
     image_with ImageUploader
     field :logo_background, type: String
 
-    field :installed, type: Boolean, default: false
-    field :pull_asynchronous, type: Boolean, default: true
+    field :installed, type: Mongoid::Boolean, default: false
+    field :pull_asynchronous, type: Mongoid::Boolean, default: true
 
     before_validation do
       self.shared_version ||= '0.0.1'
@@ -79,12 +83,12 @@ module Setup
 
     def hash_attribute_read(name, value)
       case name
-      when 'data'
-        installed? ? generate_data : value
-      when 'pull_data'
-        installed? ? value : data
-      else
-        value
+        when 'data'
+          installed? ? generate_data : value
+        when 'pull_data'
+          installed? ? value : data
+        else
+          value
       end
     end
 
@@ -102,14 +106,7 @@ module Setup
     end
 
     def ensure_shared_name
-      self.owner ||= Cenit::MultiTenancy.tenant_model.current.owner
-      shared_name = Setup::CrossSharedName.find_or_create_by(name: name)
-      if shared_name.owners.empty?
-        shared_name.owners << owner
-        shared_name.save
-      elsif shared_name.owners.exclude?(owner)
-        errors.add(:name, 'is already taken')
-      end
+      # TODO Include a validation logic for shared collections names
       errors.blank?
     end
 
@@ -394,20 +391,20 @@ module Setup
 
     def clean_ids(value)
       case value
-      when Hash
-        if value['_reference']
-          Cenit::Utility.deep_remove(value, 'id')
-        else
-          h = {}
-          value.each do |key, sub_value|
-            h[key] = clean_ids(sub_value)
+        when Hash
+          if value['_reference']
+            Cenit::Utility.deep_remove(value, 'id')
+          else
+            h = {}
+            value.each do |key, sub_value|
+              h[key] = clean_ids(sub_value)
+            end
+            h
           end
-          h
-        end
-      when Array
-        value.collect(&method(:clean_ids))
-      else
-        value
+        when Array
+          value.collect(&method(:clean_ids))
+        else
+          value
       end
     end
 

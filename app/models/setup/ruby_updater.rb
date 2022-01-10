@@ -2,11 +2,10 @@ module Setup
   class RubyUpdater < UpdaterTransformation
     include WithSourceOptions
     include RubyCodeTransformation
-    include RailsAdmin::Models::Setup::RubyUpdaterAdmin
 
     build_in_data_type.referenced_by(:namespace, :name)
 
-    field :source_handler, type: Boolean
+    field :source_handler, type: Mongoid::Boolean
 
     def validates_configuration
       remove_attribute(:source_handler) unless source_handler

@@ -5,18 +5,21 @@ module Mongoid
     class Trace
       include Setup::CenitScoped
       include CrossOrigin::CenitDocument
-      include RailsAdmin::Models::Mongoid::Tracer::TraceAdmin
 
-      Setup::Models.regist(self)
-
-      build_in_data_type.including(:created_at).and(
+      build_in_data_type.and(
+        label: '{{action}} at {{created_at | date: "%Y-%m-%d %H:%M"}}',
+        with_origin: true,
         properties: {
-          target: {}
+          target: {
+            type: 'object'
+          },
+          changes_set: {
+            type: 'object'
+          }
         }
       )
 
-      deny :all
-      allow :index, :show, :member_trace_index, :collection_trace_index, :delete, :delete_all
+      allow :read, :delete
 
       origins -> { Cenit::MultiTenancy.tenant_model.current && [:default, :owner] }, :shared
 
@@ -65,6 +68,30 @@ module Mongoid
           [
             Setup::CenitDataType
           ]
+
+      def insert_as_root(&block)
+        self.class.skip_keys_validation do
+          super(&block)
+        end
+      end
+
+      class << self
+
+        def skip_keys_validation
+          key = ::Mongo::Operation::KEYS_VALIDATION_KEY
+          current_keys_validation = Thread.current[key]
+          Thread.current[key] = false
+          yield if block_given?
+        ensure
+          Thread.current[key] = current_keys_validation
+        end
+
+        def with(*args, &block)
+          skip_keys_validation do
+             super(*args, &block)
+          end
+        end
+      end
     end
   end
 end

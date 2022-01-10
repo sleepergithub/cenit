@@ -1,13 +1,13 @@
 module Mongoff
   class Criteria
     include Enumerable
-    include Origin::Queryable
+    include Mongoid::Criteria::Queryable
 
     attr_reader :model
 
     def initialize(model)
       super(Aliases.new(model), Hash.new { |h, k| h[k] = Serializer.new(model, k) })
-      @selector = Selector.new(aliases, serializers)
+      @selector = Mongoff::Selector.new(aliases, serializers)
       @model = model
       yield(self) if block_given?
     end
@@ -76,14 +76,42 @@ module Mongoff
 
     def find(*args)
       case (docs = any_in(id: args).to_a).length
-      when 0
-        nil
-      when 1
-        docs[0]
-      else
-        docs
+        when 0
+          nil
+        when 1
+          docs[0]
+        else
+          docs
       end
     end
+
+    # TODO Review from here
+    include Kaminari::ConfigurationMethods::ClassMethods
+    include Kaminari::Mongoid::MongoidCriteriaMethods
+    include Kaminari::PageScopeMethods
+
+    define_method(Kaminari.config.page_method_name) do |num|
+      limit(Kaminari.config.default_per_page).offset(Kaminari.config.default_per_page * ([num.to_i, 1].max - 1))
+    end
+
+    def embedded?
+      false
+    end
+
+    def offset_value
+      super || 0
+    end
+
+    def limit_value
+      super || total_count
+    end
+
+    def includes(*_)
+      #For eager load mongoid compatibility which is not supported on mongoff
+      self
+    end
+
+    # TODO to here
 
     private
 
@@ -154,12 +182,20 @@ module Mongoff
           value.id
         else
           case value
-          when Hash, Regexp
-            value
-          when Enumerable
-            value.collect { |v| model.mongo_value(v, field) }
-          else
-            model.mongo_value(value, field)
+            when Hash, Regexp
+              value
+            when Enumerable
+              value.collect { |v| model.mongo_value(v, field) }
+            else
+              if model.property?(field) && !model.property_model?(field)
+                model.mongo_value(value, field)
+              else
+                begin
+                  value.class.evolve(value)
+                rescue
+                  value
+                end
+              end
           end
         end
       end

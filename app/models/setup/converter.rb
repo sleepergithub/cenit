@@ -1,6 +1,6 @@
 module Setup
   class Converter < LegacyTranslator
-    include RailsAdmin::Models::Setup::ConverterAdmin
+
     include Setup::TranslationCommon::ClassMethods
 
     transformation_type :Conversion
@@ -51,7 +51,7 @@ module Setup
       else
         rejects :map_attributes
       end
-      errors.blank?
+      abort_if_has_errors
     end
 
     # TODO Remove when refactoring translators in style models

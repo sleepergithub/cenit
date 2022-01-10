@@ -7,7 +7,7 @@ module Cenit
   class OauthAccessToken < BasicToken
     include OauthGrantToken
 
-    field :token_type, type: Symbol, default: :Bearer
+    field :token_type, type: StringifiedSymbol, default: :Bearer
 
     validates_inclusion_of :token_type, in: [:Bearer]
 
@@ -16,11 +16,8 @@ module Cenit
     end
 
     def get_tenant
-      if access_grant.origin == :owner
-        user&.account || tenant&.owner&.account
-      else
-        super
-      end
+      (access_grant&.origin == :owner &&
+        (user&.account || tenant&.owner&.account)) || super
     end
 
     class << self

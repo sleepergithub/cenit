@@ -5,7 +5,6 @@ module Setup
     include SnippetCode
     include NamespaceNamed
     include Taggable
-    include RailsAdmin::Models::Setup::AlgorithmAdmin
     # = Algorithm
     #
     # Is a core concept in Cenit, define function that is possible execute.
@@ -14,7 +13,15 @@ module Setup
 
     trace_include :code
 
-    build_in_data_type.referenced_by(:namespace, :name)
+    build_in_data_type.referenced_by(:namespace, :name).and(
+      properties: {
+        language: {
+          enum: %w(auto ruby javascript),
+          enumNames: ['Auto detect', 'Ruby', 'JavaScript'],
+          default: 'auto'
+        }
+      }
+    )
 
     field :description, type: String
     embeds_many :parameters, class_name: Setup::AlgorithmParameter.to_s, inverse_of: :algorithm
@@ -25,16 +32,16 @@ module Setup
     accepts_nested_attributes_for :parameters, allow_destroy: true
     accepts_nested_attributes_for :call_links, allow_destroy: true
 
-    field :store_output, type: Boolean
+    field :store_output, type: Mongoid::Boolean
     belongs_to :output_datatype, class_name: Setup::DataType.to_s, inverse_of: nil
-    field :validate_output, type: Boolean
+    field :validate_output, type: Mongoid::Boolean
     field :parameters_size, type: Integer
 
     before_save :validate_parameters, :validate_code, :validate_output_processing
 
     attr_reader :last_output
 
-    field :language, type: Symbol, default: -> { new_record? ? :auto : :ruby }
+    field :language, type: StringifiedSymbol, default: -> { new_record? ? :auto : :ruby }
 
     validates_inclusion_of :language, in: ->(alg) { alg.class.language_enum.values }
 
@@ -59,7 +66,7 @@ module Setup
       end
       errors.add(:parameters, 'contains invalid sequence of required parameters') if (last = parameters.last) && last.errors.present?
       self.parameters_size = parameters.size
-      errors.blank?
+      abort_if_has_errors
     end
 
     def validate_code
@@ -83,7 +90,7 @@ module Setup
           do_link
         end
       end
-      errors.blank?
+      abort_if_has_errors
     end
 
     def validate_output_processing
@@ -95,7 +102,7 @@ module Setup
           self.output_datatype = rc
         end
       end
-      errors.blank?
+      abort_if_has_errors
     end
 
     def do_link

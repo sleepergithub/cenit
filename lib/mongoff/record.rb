@@ -107,18 +107,6 @@ module Mongoff
 
     def do_validate(options = {})
       Mongoff::Validator.soft_validates(self, skip_nulls: true)
-      # TODO Uncommnet as part of transition to Mongoff Validation...
-      # mongoff_errors = errors.present? && errors.full_messages.to_sentence
-      # errors.clear
-      # orm_model.fully_validate_against_schema(attributes).each do |error|
-      #   errors.add(:base, error[:message])
-      # end
-      # if mongoff_errors && !errors.present?
-      #   Setup::SystemReport.create_with(
-      #     message: "Mongoff Validator ERRORS: #{mongoff_errors}",
-      #     type: :warning
-      #   )
-      # end
     end
 
     def valid?
@@ -346,10 +334,38 @@ module Mongoff
       end
     end
 
+    def safe_send(key)
+      self[key]
+    end
+
+    def class
+      orm_model
+    end
+
+    def ruby_class
+      method(:class).super_method.call
+    end
+
+    def associations
+      self.class.associations
+    end
+
+    def to_model
+      self
+    end
+
+    def model_name
+      orm_model.model_name
+    end
+
+    def to_key
+      [id]
+    end
+
     protected
 
     def prepare_attributes
-      document[:_type] = orm_model.to_s if orm_model.reflectable?
+      document[:_type] = orm_model.to_s if orm_model.type_polymorphic?
       @fields.each do |field, value|
         nested = (association = orm_model.associations[field]) && association.nested?
         if nested || document[field].nil?
@@ -382,6 +398,7 @@ module Mongoff
                 else
                   "updating record with ID '#{id}'"
                 end
+              errors.add(:base, "Before save callback (#{callback.custom_title}) error: #{ex.message}")
               Setup::SystemNotification.create(message: "Error #{obj_msg} with type ' #{orm_model.data_type.custom_title}', running before save callback '#{callback.custom_title}': #{ex.message}")
               false
             end

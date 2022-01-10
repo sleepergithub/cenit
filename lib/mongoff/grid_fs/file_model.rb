@@ -10,7 +10,14 @@ module Mongoff
                                          label: '{{filename}}',
                                          properties:
                                            {
-                                             _id: {},
+                                             _id: {
+                                               unique: true,
+                                               title: 'Id',
+                                               description: 'Required',
+                                               edi: {
+                                                 segment: 'id'
+                                               }
+                                             },
                                              filename: {
                                                title: 'File name',
                                                type: :string
@@ -48,7 +55,11 @@ module Mongoff
                                                }
                                              },
                                              metadata: {},
-                                             data: {},
+                                             data: {
+                                               edi: {
+                                                 discard: true
+                                               }
+                                             },
                                              encoding: {
                                                type: :string,
                                                enum: %w(encode64 strict_encode64 urlsafe_encode64)
@@ -72,6 +83,10 @@ module Mongoff
           p << 'public_url'
         end
         p
+      end
+
+      def type_polymorphic?
+        false
       end
 
       protected

@@ -63,7 +63,7 @@ Cenit::Application.configure do
 
   # Precompile additional assets.
   # application.js, application.css, and all non-JS/CSS in app/assets folder are already added.
-  # config.assets.precompile += %w( search.js )
+  config.assets.precompile += %w( application.js devise.js )
 
   # Ignore bad email addresses and do not raise email delivery errors.
   # Set this to true and configure the email server for immediate delivery to raise delivery errors.
@@ -96,6 +96,4 @@ Cenit::Application.configure do
 
   config.action_mailer.perform_deliveries = true
   config.action_mailer.raise_delivery_errors = true
-
-  config.assets.precompile += %w(codemirror* codemirror/**/* rails_admin/sync.js rails_admin/custom/admin.js)
 end

@@ -1,4 +1,6 @@
 require 'cenit/core_ext'
+require 'cenit/rabbit'
+require 'edi/parser'
 
 module Cenit
   default_options service_url: '/service',
@@ -6,10 +8,6 @@ module Cenit
                   rabbit_mq_queue: lambda { Mongoid.default_client.database.name }
 
   class << self
-
-    def initializing?
-      Thread.current[:cenit_initializing]
-    end
 
     def http_proxy
       if (address = http_proxy_address) && (port = http_proxy_port)
@@ -25,14 +23,6 @@ module Cenit
         end
       end
       options
-    end
-
-    def excluded_actions(*args)
-      if args.length.zero?
-        options[:excluded_actions]
-      else
-        self[:excluded_actions] = args.flatten.collect(&:to_s).join(' ').split(' ').collect(&:to_sym)
-      end
     end
 
     def reserved_namespaces(*args)

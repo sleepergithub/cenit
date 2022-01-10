@@ -1,15 +1,21 @@
 module Setup
   class DelayedMessage
     include CenitUnscoped
-    include RailsAdmin::Models::Setup::DelayedMessageAdmin
 
     deny :all
 
-    build_in_data_type
+    build_in_data_type.on_origin(:admin).and(
+      properties: {
+        live_publish_at: {
+          type: 'string',
+          format: 'date-time'
+        }
+      }
+    )
 
     field :message, type: String
     field :publish_at, type: DateTime
-    field :unscheduled, type: Boolean
+    field :unscheduled, type: Mongoid::Boolean
 
     belongs_to :scheduler, class_name: Setup::Scheduler.to_s, inverse_of: :delayed_messages
     belongs_to :tenant, class_name: Account.to_s, inverse_of: nil
@@ -30,7 +36,7 @@ module Setup
             end
           end
       end
-      publish_at.present?
+      throw(:abort) unless publish_at.present?
     end
 
     after_save :send_to_adapter

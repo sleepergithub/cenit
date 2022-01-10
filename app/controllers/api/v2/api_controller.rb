@@ -98,7 +98,7 @@ module Api::V2
             options = @parser_options.merge(create_collector: Set.new).symbolize_keys
             model = data_type.records_model
             if model.is_a?(Class) && model < FieldsInspection
-              options[:inspect_fields] = Account.current.nil? || !::User.current_super_admin?
+              options[:inspect_fields] = Account.current.nil? || !::User.super_access?
             end
             if (record = data_type.send(@payload.create_method,
                                         @payload.process_item(item, data_type, options),
@@ -137,7 +137,7 @@ module Api::V2
               options = @parser_options.merge(create_collector: Set.new).symbolize_keys
               model = data_type.records_model
               if model.is_a?(Class) && model < FieldsInspection
-                options[:inspect_fields] = Account.current.nil? || !::User.current_super_admin?
+                options[:inspect_fields] = Account.current.nil? || !::User.super_access?
               end
               if (record = data_type.send(@payload.create_method,
                                           @payload.process_item(item, data_type, options),
@@ -174,7 +174,7 @@ module Api::V2
         @item.send(@payload.update_method, message, @parser_options)
         save_options = {}
         if @item.class.is_a?(Class) && @item.class < FieldsInspection
-          save_options[:inspect_fields] = Account.current.nil? || !::User.current_super_admin?
+          save_options[:inspect_fields] = Account.current.nil? || !::User.super_access?
         end
         if Cenit::Utility.save(@item, save_options)
           if (warnings = @item.try(:warnings))
@@ -446,7 +446,7 @@ module Api::V2
           ].each do |model|
             next if user
             record = model.where(key: key).first
-            if record && Devise.secure_compare(record[:authentication_token], token)
+            if record && Devise.secure_compare(record[:authentication_token] || record[:token], token)
               Account.current = record.api_account
               user = record.user
             end
@@ -509,7 +509,7 @@ module Api::V2
 
     def cors_header
       headers['Access-Control-Allow-Origin'] = request.headers['Origin'] || ::Cenit.homepage
-      headers['Access-Control-Allow-Credentials'] = false
+      headers['Access-Control-Allow-Credentials'] = 'false'
       headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Accept, Content-Type, X-Tenant-Access-Key, X-Tenant-Access-Token, X-User-Access-Key, X-User-Access-Token, Authorization'
       headers['Access-Control-Allow-Methods'] = 'POST, GET, PUT, DELETE, OPTIONS'
       headers['Access-Control-Max-Age'] = '1728000'
@@ -638,7 +638,7 @@ module Api::V2
         end
         @criteria = @criteria.with_indifferent_access
         @criteria_options = @criteria_options.with_indifferent_access
-        @criteria.merge!(params.reject { |key, _| %w(controller action ns model format api).include?(key) })
+        @criteria.merge!(params.permit!.reject { |key, _| %w(controller action ns model format api).include?(key) })
         @criteria.each { |key, value| @criteria[key] = Cenit::Utility.json_value_of(value) }
         unless (@render_options = Cenit::Utility.json_value_of(request.headers['X-Render-Options'])).is_a?(Hash)
           @render_options = {}

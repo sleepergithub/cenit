@@ -2,15 +2,14 @@ module Setup
   class CrossCollectionPullParameter
     include CenitUnscoped
     include HashField
-    include RailsAdmin::Models::Setup::CrossCollectionPullParameterAdmin
 
     build_in_data_type.referenced_by(:label)
 
     field :_id, type: String, default: lambda { "oid_#{BSON::ObjectId.new.to_s}" }
     field :label, type: String
     field :type, type: String, default: 'string'
-    field :many, type: Boolean, default: false
-    field :required, type: Boolean, default: true
+    field :many, type: Mongoid::Boolean, default: false
+    field :required, type: Mongoid::Boolean, default: true
     field :description, type: String
     embeds_many :properties_locations, class_name: Setup::PropertyLocation.to_s, inverse_of: :pull_parameter
 

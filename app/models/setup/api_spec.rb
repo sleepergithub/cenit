@@ -1,11 +1,10 @@
 module Setup
   class ApiSpec
     include SharedEditable
-    include RailsAdmin::Models::Setup::ApiSpecAdmin
 
     build_in_data_type.referenced_by(:name)
 
-    shared_allow :swagger
+    # TODO shared_allow :swagger
 
     field :title, type: String
     field :url, type: String
@@ -79,7 +78,7 @@ paths:
       else
         errors.add(:specification, I18n.t('cenit.api_spec.specification.invalid_format'))
       end
-      errors.blank?
+      abort_if_has_errors
     end
 
     def cenit_collection_hash(options = {})

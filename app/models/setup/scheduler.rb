@@ -1,7 +1,7 @@
 module Setup
   class Scheduler < Event
     include HashField
-    include RailsAdmin::Models::Setup::SchedulerAdmin
+    include Switchable
     # = Scheduler
     #
     # Are events triggered on a certain moment and can be optionally recurrent.
@@ -34,7 +34,7 @@ module Setup
     build_in_data_type.with(:namespace, :name, :expression, :activated).referenced_by(:namespace, :name)
 
     hash_field :expression
-    field :activated, type: Boolean, default: false
+    field :activated, type: Mongoid::Boolean, default: false
 
     has_many :delayed_messages, class_name: Setup::DelayedMessage.to_s, inverse_of: :scheduler
 
@@ -44,8 +44,12 @@ module Setup
 
     validate do
       begin
-        JSON::Validator.validate!(SCHEMA, expression)
-      rescue JSON::Schema::ValidationError => e
+        Mongoff::Validator.validate_instance(
+          expression,
+          schema: SCHEMA,
+          data_type: self.class.data_type
+        )
+      rescue Exception => e
         errors.add(:expression, e.message)
       end
       errors.blank?
@@ -100,6 +104,14 @@ module Setup
 
     def deactivate
       update(activated: false) unless deactivated?
+    end
+
+    def switch
+      if activated?
+        deactivate
+      else
+        activate
+      end
     end
 
     def next_time
@@ -174,14 +186,14 @@ module Setup
         },
         start_at: {
           type: 'string',
-          pattern: '^\d\d\d\d-(0?[1-9]|1[0-2])-(0?[1-9]|[12][0-9]|3[01])$'
+          format: 'date-time'
         },
         frequency: {
           type: 'integer'
         },
         end_at: {
           type: 'string',
-          pattern: '^\d\d\d\d-(0?[1-9]|1[0-2])-(0?[1-9]|[12][0-9]|3[01])$'
+          format: 'date-time'
         },
         max_repeat: {
           type: 'integer'
@@ -189,7 +201,7 @@ module Setup
       },
       required: %w(type),
       additionalProperties: false
-    }.to_json
+    }.deep_stringify_keys
   end
 
 

@@ -128,7 +128,7 @@ module Cenit
           fail "Unable to authorize #{auth.custom_title}: #{auth.errors.full_messages.to_sentence}"
         end
       else
-        authorize_path = @controller.rails_admin.authorize_path(model_name: auth.class.to_s.underscore.gsub('/', '~'), id: auth.id.to_s)
+        authorize_path = @controller.authorization_authorize_path(id: auth.id.to_s)
         redirect_to "#{Cenit.homepage}#{authorize_path}"
       end
     end
@@ -232,7 +232,7 @@ module Cenit
     def current_user
       current_user = @controller.current_user
       alg = algorithm(:current_user, false)
-      alg ? alg.run(control, current_user) : current_user
+      alg ? alg.run([self, current_user]) : current_user
     end
 
     def app_url(path = nil, params = nil)
@@ -249,7 +249,7 @@ module Cenit
       return_to ||= app_url(@action.path) if @action.http_method == :get
       sign_in_url = @controller.new_user_session_url(return_to: return_to)
       alg = algorithm(:sign_in_url, false)
-      alg ? alg.run(self, sign_in_url) : sign_in_url
+      alg ? alg.run([self, sign_in_url]) : sign_in_url
     end
 
     def sign_out_url(return_to = nil)
@@ -257,7 +257,7 @@ module Cenit
       return_to ||= app_url(@action.path) if @action.http_method == :get
       sign_out_url = @controller.destroy_user_session_url(return_to: return_to)
       alg = algorithm(:sign_out_url, false)
-      alg ? alg.run(self, sign_out_url) : sign_out_url
+      alg ? alg.run([self, sign_out_url]) : sign_out_url
     end
 
     def get_resource(type, name, throw = true)

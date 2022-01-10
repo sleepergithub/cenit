@@ -10,9 +10,8 @@ module Setup
     include ClassHierarchyAware
     include ModelConfigurable
     include BuildIn
-    include RailsAdmin::Models::Setup::DataTypeAdmin
 
-    origins origins_config, :cenit
+    origins origins_config, :cenit, -> { ::User.super_access? ? [:admin, :tmp] : nil }
 
     abstract_class true
 
@@ -24,8 +23,6 @@ module Setup
       :records_methods,
       :data_type_methods
     ).referenced_by(:namespace, :name)
-
-    deny :delete, :new, :switch_navigation, :copy
 
     config_with Setup::DataTypeConfig, only: :slug
 
@@ -73,7 +70,7 @@ module Setup
       unless config.validate_slug
         config.errors.messages[:slug].each { |error| errors.add(:slug, error) }
       end
-      errors.blank?
+      abort_if_has_errors
     end
 
     def clean_up
@@ -113,7 +110,11 @@ module Setup
     end
 
     def records_model
-      (m = model) && m.is_a?(Class) ? m : @mongoff_model ||= create_mongoff_model
+      (m = model) && m.is_a?(Class) ? m : mongoff_model
+    end
+
+    def mongoff_model
+      @mongoff_model ||= create_mongoff_model
     end
 
     def model

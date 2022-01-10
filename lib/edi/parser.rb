@@ -19,7 +19,7 @@ module Edi
       def parse_json(data_type, content, options = {}, record = nil, model = nil)
         content = JSON.parse(content) unless content.is_a?(Hash)
         process_options(options)
-        do_parse_json(data_type, model || data_type.records_model, content.with_indifferent_access, options, (record && record.orm_model.schema) || (model && model.schema) || data_type.merged_schema, nil, record)
+        do_parse_json(data_type, model || record&.orm_model || data_type.records_model, content.with_indifferent_access, options, (record && record.orm_model.schema) || (model && model.schema) || data_type.merged_schema, nil, record)
       end
 
       def parse_xml(data_type, content, options = {}, record = nil)
@@ -263,6 +263,9 @@ module Edi
             end
             if record
               return record if json['_reference'].to_b
+              if (update_callback = options[:update_callback])
+                update_callback.call(record)
+              end
               updating = true
               unless model == record.orm_model
                 model = record.orm_model
@@ -271,6 +274,9 @@ module Edi
               end
             else
               updating = false
+              if (create_callback = options[:create_callback])
+                create_callback.call(model)
+              end
               (record = model.new).instance_variable_set(:@dynamically_created, true)
             end
           else
@@ -345,7 +351,7 @@ module Edi
                   record.send("#{property_name}=", nil)
                 end
               when 'object'
-                next unless updating || !property_model.modelable? || record.send(property_name).nil?
+                next unless updating || !property_model&.modelable? || record.send(property_name).nil?
                 if (property_value = json[name])
                   if property_model && property_value.is_a?(Hash) && property_value['_reference'] && ((property_value[:id].nil? && property_value[:_id].nil?) || options[:skip_refs_binding])
                     record.send("#{property_name}=", nil)
@@ -405,7 +411,7 @@ module Edi
                 record.send("#{content_property}=", [])
                 association = record.send(content_property)
                 property_model = model.property_model(content_property)
-                persist = property_model && property_model.persistable?
+                persist = property_model&.persistable?
                 json.each do |sub_value|
                   if persist && sub_value['_reference'] && ((sub_value[:id].nil? && sub_value[:_id].nil?) || options[:skip_refs_binding])
                     sub_value = Cenit::Utility.deep_remove(sub_value, '_reference')

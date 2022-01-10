@@ -1,7 +1,8 @@
 module Setup
   class JsonDataType < DataType
     include Setup::SnippetCode
-    include RailsAdmin::Models::Setup::JsonDataTypeAdmin
+
+    origins Setup::CrossOriginShared::DEFAULT_ORIGINS
 
     validates_presence_of :namespace
 
@@ -31,10 +32,6 @@ module Setup
       }
     )
 
-    allow :new, :import, :pull_import, :bulk_cross, :simple_cross, :bulk_expand, :simple_expand, :copy, :switch_navigation, :data_type_config
-
-    shared_deny :simple_delete_data_type, :bulk_delete_data_type, :simple_expand, :bulk_expand
-
     DEFAULT_SCHEMA = {
       type: 'object',
       properties: {
@@ -44,18 +41,20 @@ module Setup
       }
     }.deep_stringify_keys
 
-    field :discard_additional_properties, type: Boolean, default: true
+    field :discard_additional_properties, type: Mongoid::Boolean, default: true
 
     after_initialize do
       self.schema = DEFAULT_SCHEMA if new_record? && @schema.nil?
     end
 
+    def save_self_before_refs
+      true
+    end
+
     def validates_configuration
-      super && validate_model && check_indices &&
-        begin
-          remove_attribute(:schema)
-          true
-        end
+      super
+      remove_attribute(:schema) if validate_model && check_indices
+      abort_if_has_errors
     end
 
     def additional_properties?
@@ -98,6 +97,7 @@ module Setup
     def schema=(sch)
       old_schema = schema
       sch = JSON.parse(sch.to_s) unless sch.is_a?(Hash)
+      sch = sch.deep_stringify_keys
       self.code = JSON.pretty_generate(sch)
       @schema = sch
     rescue
@@ -174,6 +174,7 @@ module Setup
         end
       else
         errors.add(:schema_code, 'is not a valid JSON value')
+        errors.add(:schema, 'is not a valid JSON value')
       end
       errors.blank?
     end

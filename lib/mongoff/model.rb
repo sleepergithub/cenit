@@ -1,5 +1,3 @@
-require 'json-schema/schema/cenit_reader'
-require 'json-schema/validators/mongoff'
 
 module Mongoff
   class Model
@@ -54,6 +52,10 @@ module Mongoff
 
     def reflectable?
       persistable?
+    end
+
+    def type_polymorphic?
+      reflectable?
     end
 
     def persistable?
@@ -175,6 +177,10 @@ module Mongoff
       end
     end
 
+    def excluded_relation?(_relation_name)
+      false
+    end
+
     def hereditary?
       data_type.subtype?
     end
@@ -271,7 +277,7 @@ module Mongoff
     def attribute_key(field, field_metadata = {})
       field_metadata[:model] ||= property_model(field)
       model = field_metadata[:model]
-      if model && model.persistable? && (schema = (field_metadata[:schema] ||= property_schema(field)))['referenced']
+      if model&.persistable? && (schema = (field_metadata[:schema] ||= property_schema(field)))['referenced']
         ((schema['type'] == 'array') ? field.to_s.singularize + '_ids' : "#{field}_id").to_sym
       else
         field.to_s == 'id' ? :_id : field.to_sym
@@ -282,8 +288,9 @@ module Mongoff
       if property?(name)
         name
       else
-        name = name.to_s.gsub(/_id(s)?\Z/, '')
-        if (name = [name.pluralize, name].detect { |n| property?(n) })
+        match = name.to_s.match(/\A(.+)(_id(s)?)\Z/)
+        name = match && "#{match[1]}#{match[3]}"
+        if property?(name)
           name
         else
           nil
@@ -306,12 +313,16 @@ module Mongoff
         if (id = value.try(:id)).is_a?(BSON::ObjectId)
           id
         else
-          BSON::ObjectId.from_string(value.to_s)
+          value = value.to_s
+          if (match = value.match(/\A\$oid#(.*\Z)/))
+            value = match[1]
+          end
+          BSON::ObjectId.from_string(value)
         end
       end,
 
       BSON::Binary => ->(value) { BSON::Binary.new(value.to_s) },
-      Boolean => ->(value) { value.to_s.to_b },
+      Mongoid::Boolean => ->(value) { value.to_s.to_b },
 
       String => ->(value) do
         case value
@@ -324,7 +335,7 @@ module Mongoff
 
       Integer => ->(value) { value.to_s.to_i },
       Float => ->(value) { value.to_s.to_f },
-      Date => ->(value) { Date.parse(value.to_s) },
+      Date => ->(value) { DateTime.parse(value.to_s) },
       DateTime => ->(value) { DateTime.parse(value.to_s) },
       Time => ->(value) { Time.parse(value.to_s) },
 
@@ -393,13 +404,6 @@ module Mongoff
         success_block.call(*args)
       end
       success_value
-    end
-
-    def fully_validate_against_schema(value, options = {})
-      JSON::Validator.fully_validate(schema, value, options.merge(version: :mongoff,
-                                                                  schema_reader: JSON::Schema::CenitReader.new(data_type),
-                                                                  errors_as_objects: true,
-                                                                  data_type: data_type))
     end
 
     class << self
@@ -499,6 +503,22 @@ module Mongoff
       self.class.for(options)
     end
 
+    def model_name
+      @model_name ||= ActiveModel::Name.new(nil, nil, name)
+    end
+
+    def human_attribute_name(attribute, _ = {})
+      attribute.to_s.titleize
+    end
+
+    def method_defined?(*args)
+      property?(args[0])
+    end
+
+    def relations
+      associations
+    end
+
     protected
 
     def initialize(data_type, options = {})
@@ -542,7 +562,7 @@ module Mongoff
     end
 
     def check_referenced_schema(schema, check_for_array = true)
-      if schema.is_a?(Hash) && (schema = schema.reject { |key, _| %w(types contextual_params data filter group xml unique title description edi format example enum readOnly default visible referenced_by maxProperties minProperties auto).include?(key) })
+      if schema.is_a?(Hash) && (schema = schema.reject { |key, _| %w(types contextual_params data filter group xml unique title description edi format example enum readOnly default visible referenced_by maxProperties minProperties auto export_embedded exclusive).include?(key) })
         property_dt = nil
         ns = data_type.namespace
         if (ref = schema['$ref']).is_a?(Array)

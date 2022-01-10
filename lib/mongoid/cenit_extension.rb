@@ -19,8 +19,18 @@ module Mongoid
       super
     rescue Exception => ex
       report = Setup::SystemReport.create_from(ex)
-      errors.add(:base, report.message)
+      if report
+        errors.add(:base, report.message)
+      else
+        puts "Exception report could not be created, here's the error: #{ex.message}"
+        puts ex.backtrace
+        errors.add(:base, ex.message)
+      end
       false
+    end
+
+    def abort_if_has_errors
+      throw(:abort) unless errors.blank?
     end
   end
 
@@ -41,12 +51,12 @@ module Mongoid
         if success_block
           args =
             case success_block.arity
-            when 0
-              []
-            when 1
-              [value]
-            else
-              [value, success_type]
+              when 0
+                []
+              when 1
+                [value]
+              else
+                [value, success_type]
             end
           success_block.call(*args)
         end
@@ -62,7 +72,7 @@ module Mongoid
       end
 
       def persistable?
-        [Object, Setup].include?(parent)
+        [Object, Setup].include?(module_parent)
       end
 
       def all_collections_names
@@ -126,11 +136,20 @@ module Mongoid
                                     :has_many,
                                     :has_and_belongs_to_many,
                                     :belongs_to).each do |relation|
-          block.yield(name: relation.name, embedded: relation.embedded?, many: relation.many?) unless relation.macro == :belongs_to && relation.inverse_of.present?
+          unless relation.macro == :belongs_to && relation.inverse_of.present?
+            block.yield(
+              name: relation.name,
+              embedded: relation.embedded?,
+              many: relation.many?)
+          end
         end
       end
 
-      def attribute_key(field, field_metadata = {})
+      def excluded_relation?(relation_name)
+        Setup::BuildInDataType::EXCLUDED_RELATIONS.include?(relation_name.to_s)
+      end
+
+      def attribute_key(field, _field_metadata = {})
         if (association = reflect_on_association(field))
           association.foreign_key
         else
@@ -142,8 +161,9 @@ module Mongoid
         if property?(name)
           name
         else
-          name = name.to_s.gsub(/_id(s)?\Z/, '')
-          if (name = [name.pluralize, name].detect { |n| property?(n) })
+          match = name.to_s.match(/\A(.+)(_id(s)?)\Z/)
+          name = match && "#{match[1]}#{match[3]}"
+          if property?(name)
             name
           else
             nil
